@@ -1,0 +1,12 @@
+
+order_id,product,category,quantity,price
+ORD001,Laptop,Electronics,2,850000
+ORD002,Headphones,Electronics,3,85000
+ORD003,Keyboard,Accessories,5,35000
+ORD004,Monitor,Electronics,2,250000
+ORD005,Mouse,Accessories,4,15000
+ORD006,Keyboard,Accessories,2,35000
+ORD007,Laptop,Electronics,1,850000
+ORD008,Headphones,Electronics,2,85000
+ORD009,Monitor,Electronics,3,250000
+ORD010,Mouse,Accessories,5,15000
