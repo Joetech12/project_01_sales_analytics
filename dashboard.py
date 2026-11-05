@@ -31,6 +31,7 @@ def load_sales_data():
 
 sales = load_sales_data()
 
+
 # =====================================
 # 3. DASHBOARD HEADER
 # =====================================
@@ -44,13 +45,106 @@ st.write(
 
 
 # =====================================
-# 4. SIDEBAR FILTERS
+# 4. DATA QUALITY CHECKS
 # =====================================
 
 st.sidebar.header("Dashboard Filters")
 
+with st.expander("Data Quality Inspection"):
+
+    missing_values = sales.isnull().sum().sum()
+
+    duplicate_orders = (
+        sales["order_id"].duplicated().sum()
+    )
+
+    invalid_quantities = (
+        (sales["quantity"] <= 0).sum()
+    )
+
+    invalid_prices = (
+        (sales["price"] < 0).sum()
+    )
+
+    st.subheader("Data Quality Overview")
+
+    quality_col1, quality_col2, quality_col3, quality_col4 = (
+        st.columns(4)
+    )
+
+    quality_col1.metric(
+        "Total Records",
+        len(sales),
+    )
+
+    quality_col2.metric(
+        "Missing Values",
+        int(missing_values),
+    )
+
+    quality_col3.metric(
+        "Duplicate Orders",
+        int(duplicate_orders),
+    )
+
+    quality_col4.metric(
+        "Invalid Records",
+        int(invalid_quantities + invalid_prices),
+    )
+
+    st.write("Missing values by column:")
+
+    missing_report = sales.isnull().sum()
+
+    missing_report = missing_report[
+        missing_report > 0
+    ]
+
+    if missing_report.empty:
+        st.success("No missing values detected.")
+    else:
+        st.dataframe(missing_report)
+
+    st.write("Duplicate order references:")
+
+    duplicate_records = sales[
+        sales["order_id"].duplicated(keep=False)
+    ]
+
+    if duplicate_records.empty:
+        st.success("No duplicate orders detected.")
+    else:
+        st.dataframe(duplicate_records)
+
+    st.write("Invalid quantities:")
+
+    invalid_quantity_records = sales[
+        sales["quantity"] <= 0
+    ]
+
+    if invalid_quantity_records.empty:
+        st.success("No invalid quantities detected.")
+    else:
+        st.dataframe(invalid_quantity_records)
+
+    st.write("Invalid prices:")
+
+    invalid_price_records = sales[
+        sales["price"] < 0
+    ]
+
+    if invalid_price_records.empty:
+        st.success("No invalid prices detected.")
+    else:
+        st.dataframe(invalid_price_records)
+
+
+# =====================================
+# 5. SIDEBAR FILTERS
+# =====================================
+
 available_categories = sorted(
-    sales["category"].unique().tolist()
+    sales["category"].dropna().unique().tolist()
 )
 
 selected_categories = st.sidebar.multiselect(
@@ -61,7 +155,7 @@ selected_categories = st.sidebar.multiselect(
 
 
 available_products = sorted(
-    sales["product"].unique().tolist()
+    sales["product"].dropna().unique().tolist()
 )
 
 selected_products = st.sidebar.multiselect(
@@ -71,7 +165,10 @@ selected_products = st.sidebar.multiselect(
 )
 
 
-# Filter the sales data.
+# =====================================
+# 6. FILTER SALES DATA
+# =====================================
+
 filtered_sales = sales[
     (sales["category"].isin(selected_categories))
     & (sales["product"].isin(selected_products))
@@ -79,7 +176,7 @@ filtered_sales = sales[
 
 
 # =====================================
-# 5. CALCULATE DASHBOARD KPIs
+# 7. CALCULATE BUSINESS KPIs
 # =====================================
 
 total_revenue = filtered_sales["revenue"].sum()
@@ -96,7 +193,7 @@ average_order_value = (
 
 
 # =====================================
-# 6. DISPLAY KPI CARDS
+# 8. DISPLAY KPI CARDS
 # =====================================
 
 st.subheader("Business Performance")
@@ -125,7 +222,7 @@ col4.metric(
 
 
 # =====================================
-# 7. PRODUCT PERFORMANCE
+# 9. PRODUCT PERFORMANCE
 # =====================================
 
 st.divider()
@@ -167,7 +264,7 @@ with right_column:
 
 
 # =====================================
-# 8. CATEGORY PERFORMANCE
+# 10. CATEGORY PERFORMANCE
 # =====================================
 
 st.divider()
@@ -192,7 +289,7 @@ st.bar_chart(
 
 
 # =====================================
-# 9. PRODUCT PERFORMANCE TABLE
+# 11. PRODUCT PERFORMANCE TABLE
 # =====================================
 
 st.divider()
@@ -206,7 +303,7 @@ st.dataframe(
 
 
 # =====================================
-# 10. DOWNLOAD FILTERED DATA
+# 12. DOWNLOAD FILTERED DATA
 # =====================================
 
 csv_data = filtered_sales.to_csv(
@@ -222,7 +319,7 @@ st.download_button(
 
 
 # =====================================
-# 11. DISPLAY RAW DATA
+# 13. DISPLAY SALES TRANSACTIONS
 # =====================================
 
 with st.expander("View sales transactions"):
