@@ -1,208 +1,116 @@
 
+from pathlib import Path
+
 import pandas as pd
 import streamlit as st
 
+from data_cleaner import clean_sales_data
 
-# =====================================
-# 1. PAGE CONFIGURATION
-# =====================================
 
 st.set_page_config(
-    page_title="eCommerce Analytics",
+    page_title="Sales Analytics Dashboard",
     page_icon="📊",
     layout="wide",
 )
 
-
-# =====================================
-# 2. LOAD SALES DATA
-# =====================================
-
-@st.cache_data
-def load_sales_data():
-    sales = pd.read_csv("data/raw/sales.csv")
-
-    sales["revenue"] = (
-        sales["quantity"] * sales["price"]
-    )
-
-    return sales
+st.title("📊 eCommerce Sales Analytics")
+st.write("Analyse your business sales performance.")
 
 
-sales = load_sales_data()
-
-
-# =====================================
-# 3. DASHBOARD HEADER
-# =====================================
-
-st.title("eCommerce Sales Analytics")
-
-st.write(
-    "Monitor sales performance, product revenue "
-    "and business growth."
+# Load sales data
+uploaded_file = st.sidebar.file_uploader(
+    "Upload sales CSV",
+    type=["csv"],
 )
 
+if uploaded_file is not None:
+    try:
+        raw_sales = pd.read_csv(uploaded_file)
+        sales = clean_sales_data(raw_sales)
 
-# =====================================
-# 4. DATA QUALITY CHECKS
-# =====================================
+        st.success(
+            f"Processed {len(sales)} valid records "
+            f"from {len(raw_sales)} uploaded records."
+        )
 
-st.sidebar.header("Dashboard Filters")
+    except Exception as error:
+        st.error(f"Unable to process file: {error}")
+        st.stop()
 
-with st.expander("Data Quality Inspection"):
-
-    missing_values = sales.isnull().sum().sum()
-
-    duplicate_orders = (
-        sales["order_id"].duplicated().sum()
+else:
+    cleaned_file = Path(
+        "data/processed/cleaned_sales.csv"
     )
 
-    invalid_quantities = (
-        (sales["quantity"] <= 0).sum()
-    )
-
-    invalid_prices = (
-        (sales["price"] < 0).sum()
-    )
-
-    st.subheader("Data Quality Overview")
-
-    quality_col1, quality_col2, quality_col3, quality_col4 = (
-        st.columns(4)
-    )
-
-    quality_col1.metric(
-        "Total Records",
-        len(sales),
-    )
-
-    quality_col2.metric(
-        "Missing Values",
-        int(missing_values),
-    )
-
-    quality_col3.metric(
-        "Duplicate Orders",
-        int(duplicate_orders),
-    )
-
-    quality_col4.metric(
-        "Invalid Records",
-        int(invalid_quantities + invalid_prices),
-    )
-
-    st.write("Missing values by column:")
-
-    missing_report = sales.isnull().sum()
-
-    missing_report = missing_report[
-        missing_report > 0
-    ]
-
-    if missing_report.empty:
-        st.success("No missing values detected.")
+    if cleaned_file.exists():
+        sales = pd.read_csv(cleaned_file)
     else:
-        st.dataframe(missing_report)
-
-    st.write("Duplicate order references:")
-
-    duplicate_records = sales[
-        sales["order_id"].duplicated(keep=False)
-    ]
-
-    if duplicate_records.empty:
-        st.success("No duplicate orders detected.")
-    else:
-        st.dataframe(duplicate_records)
-
-    st.write("Invalid quantities:")
-
-    invalid_quantity_records = sales[
-        sales["quantity"] <= 0
-    ]
-
-    if invalid_quantity_records.empty:
-        st.success("No invalid quantities detected.")
-    else:
-        st.dataframe(invalid_quantity_records)
-
-    st.write("Invalid prices:")
-
-    invalid_price_records = sales[
-        sales["price"] < 0
-    ]
-
-    if invalid_price_records.empty:
-        st.success("No invalid prices detected.")
-    else:
-        st.dataframe(invalid_price_records)
+        raw_sales = pd.read_csv("data/raw/sales.csv")
+        sales = clean_sales_data(raw_sales)
 
 
-# =====================================
-# 5. SIDEBAR FILTERS
-# =====================================
+if sales.empty:
+    st.warning("No valid sales records available.")
+    st.stop()
 
-available_categories = sorted(
-    sales["category"].dropna().unique().tolist()
-)
 
-selected_categories = st.sidebar.multiselect(
+# Convert dates when available
+if "order_date" in sales.columns:
+    sales["order_date"] = pd.to_datetime(
+        sales["order_date"],
+        errors="coerce",
+    )
+
+
+# Sidebar filters
+st.sidebar.header("Filters")
+
+categories = st.sidebar.multiselect(
     "Select categories",
-    options=available_categories,
-    default=available_categories,
+    options=sales["category"].unique(),
+    default=sales["category"].unique(),
 )
 
-
-available_products = sorted(
-    sales["product"].dropna().unique().tolist()
-)
-
-selected_products = st.sidebar.multiselect(
+products = st.sidebar.multiselect(
     "Select products",
-    options=available_products,
-    default=available_products,
+    options=sales["product"].unique(),
+    default=sales["product"].unique(),
 )
 
-
-# =====================================
-# 6. FILTER SALES DATA
-# =====================================
 
 filtered_sales = sales[
-    (sales["category"].isin(selected_categories))
-    & (sales["product"].isin(selected_products))
-]
+    (sales["category"].isin(categories))
+    & (sales["product"].isin(products))
+].copy()
 
 
-# =====================================
-# 7. CALCULATE BUSINESS KPIs
-# =====================================
+if filtered_sales.empty:
+    st.warning("No sales records match your filters.")
+    st.stop()
 
+
+# Calculate revenue if it does not exist
+if "revenue" not in filtered_sales.columns:
+    filtered_sales["revenue"] = (
+        filtered_sales["quantity"]
+        * filtered_sales["price"]
+    )
+
+
+# Key performance indicators
 total_revenue = filtered_sales["revenue"].sum()
-
 total_orders = len(filtered_sales)
-
 total_units = filtered_sales["quantity"].sum()
-
-average_order_value = (
-    total_revenue / total_orders
-    if total_orders > 0
-    else 0
-)
+average_order_value = total_revenue / total_orders
 
 
-# =====================================
-# 8. DISPLAY KPI CARDS
-# =====================================
-
-st.subheader("Business Performance")
+st.subheader("Business Overview")
 
 col1, col2, col3, col4 = st.columns(4)
 
 col1.metric(
     "Total Revenue",
-    f"₦{total_revenue:,.2f}",
+    f"₦{total_revenue:,.0f}",
 )
 
 col2.metric(
@@ -212,119 +120,86 @@ col2.metric(
 
 col3.metric(
     "Units Sold",
-    f"{total_units:,}",
+    f"{total_units:,.0f}",
 )
 
 col4.metric(
     "Average Order Value",
-    f"₦{average_order_value:,.2f}",
+    f"₦{average_order_value:,.0f}",
 )
 
 
-# =====================================
-# 9. PRODUCT PERFORMANCE
-# =====================================
-
-st.divider()
-
+# Product performance
 st.subheader("Product Performance")
 
-product_performance = filtered_sales.groupby(
-    "product"
-).agg(
-    total_quantity=("quantity", "sum"),
-    total_revenue=("revenue", "sum"),
+product_revenue = (
+    filtered_sales.groupby("product")["revenue"]
+    .sum()
+    .sort_values(ascending=False)
 )
 
-product_performance = product_performance.sort_values(
-    by="total_revenue",
-    ascending=False,
-)
+st.bar_chart(product_revenue)
 
 
-left_column, right_column = st.columns(2)
-
-
-with left_column:
-
-    st.write("Revenue by Product")
-
-    st.bar_chart(
-        product_performance["total_revenue"]
-    )
-
-
-with right_column:
-
-    st.write("Units Sold by Product")
-
-    st.bar_chart(
-        product_performance["total_quantity"]
-    )
-
-
-# =====================================
-# 10. CATEGORY PERFORMANCE
-# =====================================
-
-st.divider()
-
+# Category performance
 st.subheader("Category Performance")
 
-category_performance = filtered_sales.groupby(
-    "category"
-).agg(
-    total_quantity=("quantity", "sum"),
-    total_revenue=("revenue", "sum"),
+category_revenue = (
+    filtered_sales.groupby("category")["revenue"]
+    .sum()
+    .sort_values(ascending=False)
 )
 
-category_performance = category_performance.sort_values(
-    by="total_revenue",
-    ascending=False,
-)
-
-st.bar_chart(
-    category_performance["total_revenue"]
-)
+st.bar_chart(category_revenue)
 
 
-# =====================================
-# 11. PRODUCT PERFORMANCE TABLE
-# =====================================
+# Monthly revenue trend
+st.subheader("Monthly Revenue Trend")
 
-st.divider()
+if "order_date" in filtered_sales.columns:
+    dated_sales = filtered_sales.dropna(
+        subset=["order_date"]
+    ).copy()
 
-st.subheader("Product Performance Details")
+    if not dated_sales.empty:
+        dated_sales["month"] = (
+            dated_sales["order_date"]
+            .dt.to_period("M")
+            .astype(str)
+        )
+
+        monthly_revenue = (
+            dated_sales.groupby("month")["revenue"]
+            .sum()
+            .sort_index()
+        )
+
+        st.line_chart(monthly_revenue)
+
+    else:
+        st.info("No valid dates are available for this chart.")
+
+else:
+    st.info(
+        "Monthly analysis requires an order_date column."
+    )
+
+
+# Sales records
+st.subheader("Sales Records")
 
 st.dataframe(
-    product_performance,
+    filtered_sales,
     use_container_width=True,
 )
 
 
-# =====================================
-# 12. DOWNLOAD FILTERED DATA
-# =====================================
-
-csv_data = filtered_sales.to_csv(
-    index=False
-).encode("utf-8")
+# Download filtered data
+csv_data = filtered_sales.to_csv(index=False)
 
 st.download_button(
-    label="Download filtered sales data",
+    label="Download Sales Data",
     data=csv_data,
     file_name="sales_report.csv",
     mime="text/csv",
 )
-
-
-# =====================================
-# 13. DISPLAY SALES TRANSACTIONS
-# =====================================
-
-with st.expander("View sales transactions"):
-
-    st.dataframe(
-        filtered_sales,
-        use_container_width=True,
-    )

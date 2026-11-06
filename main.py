@@ -1,191 +1,48 @@
 
 import pandas as pd
-import matplotlib.pyplot as plt
 
-from pathlib import Path
-
-
-# =====================================
-# 1. LOAD SALES DATA
-# =====================================
-
-sales = pd.read_csv("data/raw/sales.csv")
+from data_cleaner import clean_sales_data
 
 
-# =====================================
-# 2. CALCULATE REVENUE
-# =====================================
-
-sales["revenue"] = (
-    sales["quantity"] * sales["price"]
-)
+# Load and clean sales data
+raw_sales = pd.read_csv("data/raw/sales.csv")
+sales = clean_sales_data(raw_sales)
 
 
-# =====================================
-# 3. BUSINESS PERFORMANCE
-# =====================================
-
+# Calculate business KPIs
 total_revenue = sales["revenue"].sum()
-total_orders = len(sales)
-total_units = sales["quantity"].sum()
+total_cost = sales["total_cost"].sum()
+total_profit = sales["gross_profit"].sum()
 
-average_order_value = total_revenue / total_orders
-
-
-print("\n========== BUSINESS PERFORMANCE ==========")
-
-print(f"Total revenue: ₦{total_revenue:,.2f}")
-print(f"Total orders: {total_orders:,}")
-print(f"Total units sold: {total_units:,}")
-
-print(
-    f"Average order value: ₦{average_order_value:,.2f}"
-)
+profit_margin = (
+    total_profit / total_revenue
+) * 100
 
 
-# =====================================
-# 4. PRODUCT PERFORMANCE
-# =====================================
+# Display results
+print("\nSALES PERFORMANCE")
+print("-------------------------")
 
-product_performance = sales.groupby("product").agg(
-    total_quantity=("quantity", "sum"),
-    total_revenue=("revenue", "sum"),
-)
-
-
-# =====================================
-# 5. CATEGORY PERFORMANCE
-# =====================================
-
-category_performance = sales.groupby("category").agg(
-    total_quantity=("quantity", "sum"),
-    total_revenue=("revenue", "sum"),
-)
+print(f"Total Revenue: ₦{total_revenue:,.2f}")
+print(f"Total Cost: ₦{total_cost:,.2f}")
+print(f"Gross Profit: ₦{total_profit:,.2f}")
+print(f"Profit Margin: {profit_margin:.2f}%")
 
 
-# =====================================
-# 6. PRODUCT RANKINGS
-# =====================================
-
-top_products = product_performance.sort_values(
-    by="total_revenue",
-    ascending=False,
-)
-
-best_selling = product_performance.sort_values(
-    by="total_quantity",
-    ascending=False,
-)
-
-
-print("\n========== TOP PRODUCTS BY REVENUE ==========")
-print(top_products)
-
-print("\n========== BESTSELLING PRODUCTS ==========")
-print(best_selling)
-
-print("\n========== CATEGORY PERFORMANCE ==========")
-print(category_performance)
-
-
-# =====================================
-# 7. CREATE REPORTS DIRECTORY
-# =====================================
-
-reports_dir = Path("reports")
-reports_dir.mkdir(exist_ok=True)
-
-
-# =====================================
-# 8. EXPORT EXCEL REPORT
-# =====================================
-
-with pd.ExcelWriter(
-    reports_dir / "sales_performance_report.xlsx"
-) as writer:
-
-    product_performance.to_excel(
-        writer,
-        sheet_name="Product Performance",
+# Product profitability
+product_performance = (
+    sales.groupby("product")
+    .agg(
+        revenue=("revenue", "sum"),
+        cost=("total_cost", "sum"),
+        gross_profit=("gross_profit", "sum"),
     )
-
-    top_products.to_excel(
-        writer,
-        sheet_name="Top Products",
+    .sort_values(
+        by="gross_profit",
+        ascending=False,
     )
-
-    category_performance.to_excel(
-        writer,
-        sheet_name="Category Performance",
-    )
-
-
-# =====================================
-# 9. REVENUE BY PRODUCT CHART
-# =====================================
-
-product_performance["total_revenue"].plot(
-    kind="bar",
 )
 
-plt.title("Revenue by Product")
-plt.xlabel("Product")
-plt.ylabel("Revenue (NGN)")
-plt.xticks(rotation=45)
-
-plt.savefig(
-    reports_dir / "revenue_by_product.png",
-    dpi=300,
-    bbox_inches="tight",
-)
-
-plt.show()
-plt.close()
-
-
-# =====================================
-# 10. UNITS SOLD CHART
-# =====================================
-
-best_selling["total_quantity"].plot(
-    kind="bar",
-)
-
-plt.title("Units Sold by Product")
-plt.xlabel("Product")
-plt.ylabel("Units Sold")
-plt.xticks(rotation=45)
-
-plt.savefig(
-    reports_dir / "units_sold_by_product.png",
-    dpi=300,
-    bbox_inches="tight",
-)
-
-plt.show()
-plt.close()
-
-
-# =====================================
-# 11. CATEGORY REVENUE CHART
-# =====================================
-
-category_performance["total_revenue"].plot(
-    kind="pie",
-    autopct="%1.1f%%",
-)
-
-plt.title("Revenue Contribution by Category")
-plt.ylabel("")
-
-plt.savefig(
-    reports_dir / "revenue_by_category.png",
-    dpi=300,
-    bbox_inches="tight",
-)
-
-plt.show()
-plt.close()
-
-
-print("\nAll reports and charts generated successfully!")
+print("\nPRODUCT PROFITABILITY")
+print("-------------------------")
+print(product_performance)
